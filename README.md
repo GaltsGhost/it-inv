@@ -2,7 +2,8 @@
 
 A full-stack web application designed for managing IT assets. It provides a clean user interface to create, read, update, and delete inventory items, and features a persistent database, a dark mode theme, and a barcode scanner input handler. The entire application is containerized with Docker for easy deployment.
 
-![image](https://github.com/user-attachments/assets/5a9fd2f3-0271-402e-b04d-0bbaa38bdd12)
+
+![453113524-5a9fd2f3-0271-402e-b04d-0bbaa38bdd12](https://github.com/user-attachments/assets/05da3cda-072c-42b4-9f65-2af03d0e8606)
 
 
 ## Features
