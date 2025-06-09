@@ -1,0 +1,317 @@
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import ReactDOM from 'react-dom/client';
+
+const DataContext = createContext(null);
+const API_BASE_URL = '';
+
+// --- FIX 1: Add this compatible UUID generator ---
+const generateUUID = () => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+const PlusIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-plus"><path d="M12 5v14M5 12h14"/></svg>
+);
+const SearchIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-search"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+);
+const EditIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-edit"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+);
+const TrashIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-trash"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+);
+const XIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+);
+const EmptyStateIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-box-select"><path d="M5 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/><path d="M10 10h4v4h-4z"/></svg>
+);
+const SunIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide lucide-sun ${className}`}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+);
+const MoonIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide lucide-moon ${className}`}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+);
+
+const App = () => {
+    const [inventoryItems, setInventoryItems] = useState([]);
+    const [currentView, setCurrentView] = useState('list');
+    const [editingItem, setEditingItem] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState(null);
+    const [message, setMessage] = useState({ text: '', type: '' });
+    const [scannedSkuForForm, setScannedSkuForForm] = useState('');
+    // --- FIX 1: Call the new compatible function ---
+    const [userId] = useState(generateUUID());
+    const [theme, setTheme] = useState('light');
+    
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+    }, [theme]);
+
+    const toggleTheme = () => {
+        setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+    };
+
+    const fetchItems = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/items`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const items = await response.json();
+            setInventoryItems(items);
+        } catch (error) {
+            console.error("Error loading items from backend:", error);
+            setMessage({ text: `Error loading items: Failed to fetch. Ensure backend is running.`, type: 'error' });
+        }
+    };
+
+    useEffect(() => {
+        fetchItems();
+    }, []);
+
+    useEffect(() => {
+        let scanBuffer = '';
+        let lastTimestamp = 0;
+        const SCAN_THRESHOLD = 150;
+        const handleGlobalKeyDown = (event) => {
+            const currentTime = Date.now();
+            if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+            if (currentTime - lastTimestamp > SCAN_THRESHOLD) scanBuffer = '';
+            if (event.key.length === 1 && event.key.match(/[\x20-\x7E]/)) scanBuffer += event.key;
+            lastTimestamp = currentTime;
+            if (event.key === 'Enter') {
+                if (scanBuffer.length > 0) {
+                    event.preventDefault();
+                    const scannedData = scanBuffer;
+                    scanBuffer = '';
+                    setMessage({ text: `Scanned: ${scannedData}`, type: 'info' });
+                    if (currentView === 'list') setSearchQuery(scannedData);
+                    else if (currentView === 'form') setScannedSkuForForm(scannedData);
+                }
+            }
+        };
+        document.addEventListener('keydown', handleGlobalKeyDown);
+        return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [currentView]);
+
+    const handleAddItem = () => {
+        setEditingItem(null);
+        setCurrentView('form');
+        setScannedSkuForForm('');
+    };
+
+    const handleEditItem = (item) => {
+        setEditingItem(item);
+        setCurrentView('form');
+        setScannedSkuForForm('');
+    };
+
+    const handleDeleteClick = (item) => {
+        setItemToDelete(item);
+        setShowConfirmModal(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!itemToDelete) return;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/items/${itemToDelete.id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            setInventoryItems(prev => prev.filter(item => item.id !== itemToDelete.id));
+            setMessage({ text: 'Item deleted successfully!', type: 'success' });
+        } catch (error) {
+            console.error("Error deleting item from backend: ", error);
+            setMessage({ text: `Error deleting item: ${error.message}`, type: 'error' });
+        } finally {
+            setShowConfirmModal(false);
+            setItemToDelete(null);
+        }
+    };
+
+    const handleCancelDelete = () => {
+        setShowConfirmModal(false);
+        setItemToDelete(null);
+    };
+
+    const filteredItems = inventoryItems.filter(item =>
+        Object.values(item).some(value =>
+            String(value).toLowerCase().includes(searchQuery.toLowerCase())
+        )
+    );
+
+    return (
+        <DataContext.Provider value={{ fetchItems, setMessage }}>
+            <div className="min-h-screen flex flex-col font-sans text-gray-800 dark:text-gray-200 p-4 sm:p-6 md:p-8">
+                {message.text && (
+                    <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center transition-opacity duration-300 ${
+                        message.type === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200' :
+                        message.type === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200' :
+                        'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
+                    }`}>
+                        <span className="mr-2">{message.type === 'success' ? '✅' : message.type === 'error' ? '❌' : 'ℹ️'}</span>
+                        {message.text}
+                        <button onClick={() => setMessage({ text: '', type: '' })} className="ml-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                            <XIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+                <header className="w-full max-w-screen-xl mx-auto mb-8 bg-white dark:bg-gray-800/50 p-6 rounded-2xl shadow-xl flex flex-col items-center justify-center relative">
+                    <div className="flex items-center justify-center gap-4">
+                       {/* --- FIX 2: This path is now corrected --- */}
+                       <img src="./logo.svg" alt="CPTC Logo" className="w-16 h-16 sm:w-20 sm:h-20" />
+                        <h1 className="text-3xl sm:text-4xl font-extrabold text-indigo-700 dark:text-indigo-300 text-center">
+                            CPTC IT Asset Management
+                        </h1>
+                    </div>
+                     <div className="absolute top-4 right-4 flex items-center gap-4">
+                        {userId && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 px-3 py-1.5 rounded-lg shadow-inner">
+                                ID: <span className="font-mono text-gray-600 dark:text-gray-300 break-all">{userId.substring(0,8)}</span>
+                            </div>
+                        )}
+                        <button onClick={toggleTheme} className="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200">
+                            {theme === 'light' ? <MoonIcon className="w-5 h-5" /> : <SunIcon className="w-5 h-5" />}
+                        </button>
+                    </div>
+                </header>
+                <main className="w-full max-w-screen-xl mx-auto flex-grow bg-white dark:bg-gray-800/50 p-6 rounded-2xl shadow-xl">
+                    {currentView === 'list' && (
+                        <>
+                            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+                                <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300">Inventory Overview</h2>
+                                <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+                                    <div className="relative flex-grow">
+                                        <input
+                                            type="text"
+                                            placeholder="Scan or type to search..."
+                                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                        />
+                                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 w-5 h-5" />
+                                    </div>
+                                    <button
+                                        onClick={handleAddItem}
+                                        className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
+                                    >
+                                        <PlusIcon className="w-5 h-5" /> Add New Item
+                                    </button>
+                                </div>
+                            </div>
+                            <InventoryList
+                                items={filteredItems}
+                                onEdit={handleEditItem}
+                                onDelete={handleDeleteClick}
+                            />
+                        </>
+                    )}
+                    {currentView === 'form' && (
+                        <InventoryForm
+                            item={editingItem}
+                            onSave={() => { setCurrentView('list'); setEditingItem(null); setScannedSkuForForm(''); }}
+                            onCancel={() => { setCurrentView('list'); setEditingItem(null); setScannedSkuForForm(''); }}
+                            scannedSkuForForm={scannedSkuForForm}
+                            setScannedSkuForForm={setScannedSkuForForm}
+                        />
+                    )}
+                </main>
+                {showConfirmModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl max-w-md w-full text-center transform scale-100 transition-all duration-300">
+                            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Confirm Deletion</h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-6">Are you sure you want to delete <span className="font-bold text-gray-900 dark:text-gray-100">"{itemToDelete?.name}"</span>? This action cannot be undone.</p>
+                            <div className="flex justify-center gap-4">
+                                <button onClick={handleConfirmDelete} className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-200">Delete</button>
+                                <button onClick={handleCancelDelete} className="bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 font-bold py-2 px-5 rounded-lg shadow-md transition-all duration-200">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </DataContext.Provider>
+    );
+};
+
+const InventoryList = ({ items, onEdit, onDelete }) => {
+    if (items.length === 0) {
+        return (
+            <div className="text-center py-10 text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center">
+                <EmptyStateIcon className="w-16 h-16 text-gray-400 dark:text-gray-500 mb-4" />
+                <p className="text-xl font-medium mb-2">No inventory items found.</p>
+                <p>Start by adding a new item!</p>
+            </div>
+        );
+    }
+    return (
+        <div className="overflow-x-auto rounded-lg shadow-inner border border-gray-200 dark:border-gray-700">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                        {['Item Name', 'SKU', 'Asset Tag', 'Location', 'Quantity', 'Status', 'Assigned To'].map(header =>
+                            <th key={header} className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{header}</th>
+                        )}
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {items.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-150">
+                            <td className="px-6 py-4"><div className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.name}</div><div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-1">{item.description}</div></td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{item.sku}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{item.assetTag || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{item.location}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{item.quantity}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                    item.status === 'In Use' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                    item.status === 'Available' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                    item.status === 'Disposed' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                }`}>{item.status}</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{item.assignedTo || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button onClick={() => onEdit(item)} className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 inline-flex items-center p-2 rounded-full hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors duration-150" title="Edit Item"><EditIcon className="w-5 h-5" /></button>
+                                <button onClick={() => onDelete(item)} className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 ml-2 inline-flex items-center p-2 rounded-full hover:bg-red-50 dark:hover:bg-gray-700 transition-colors duration-150" title="Delete Item"><TrashIcon className="w-5 h-5" /></button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+const InventoryForm = ({ item, onSave, onCancel, scannedSkuForForm, setScannedSkuForForm }) => {
+    const { fetchItems, setMessage } = useContext(DataContext);
+    const initialFormState = {
+        name: '', description: '', sku: '', assetTag: '', location: '',
+        quantity: 1, acquisitionDate: new Date().toISOString().split('T')[0],
+        status: 'Available', assignedTo: '', notes: ''
+    };
+    const [formData, setFormData] = useState(initialFormState);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (item) {
+            setFormData({
+                name: item.name || '',
+                description: item.description || '',
+                sku: item.sku || '',
+                assetTag: item.assetTag || '',
+                location: item.location || '',
+                quantity: item.quantity || 1,
+                acquisitionDate: item.acquisitionDate ? new Date(item.acquisitionDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                status: item.status || 'Available',
+                ass
