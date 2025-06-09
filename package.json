@@ -1,0 +1,25 @@
+{
+  "name": "it-inventory",
+  "version": "1.0.0",
+  "description": "IT Asset Management System",
+  "scripts": {
+    "start": "parcel src/index.html",
+    "build": "parcel build src/index.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "parcel": "^2.12.0",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^3.4.4"
+  }
+}
