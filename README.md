@@ -93,6 +93,8 @@ This method is best for making changes to the code, as it provides live reloadin
 
 This workflow builds the final, optimized application and runs it inside a Docker container.
 
+You can pull image with docker pull uthturn/it-inv
+  
 1.  **Build the Production Files:**
     This command uses Parcel to compile and optimize all frontend assets into the `dist` folder.
 
