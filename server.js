@@ -7,7 +7,6 @@ const fs = require('fs');
 const cors = require('cors');
 
 // --- Basic Input Validation Middleware ---
-// (For a real app, consider a more robust library like 'express-validator' or 'zod')
 const validateItem = (req, res, next) => {
     const { name, sku, location, quantity, status } = req.body;
     const errors = [];
